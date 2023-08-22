@@ -16,6 +16,7 @@ namespace MyBhapticsTactsuit
         public bool systemInitialized = false;
         // Event to start and stop the heartbeat thread
         private static ManualResetEvent HeartBeat_mrse = new ManualResetEvent(false);
+        private static ManualResetEvent Swimming_mrse = new ManualResetEvent(false);
         // dictionary of all feedback patterns found in the bHaptics directory
         public Dictionary<String, FileInfo> FeedbackMap = new Dictionary<String, FileInfo>();
 
@@ -32,6 +33,18 @@ namespace MyBhapticsTactsuit
                 // Check if reset event is active
                 HeartBeat_mrse.WaitOne();
                 PlaybackHaptics("HeartBeat");
+                Thread.Sleep(1000);
+            }
+        }
+        public void SwimmingFunc()
+        {
+            while (true)
+            {
+                // Check if reset event is active
+                Swimming_mrse.WaitOne();
+                PlaybackHaptics("Swimming");
+                PlaybackHaptics("EnterWater_Arms"); 
+                PlaybackHaptics("swimming_visor");
                 Thread.Sleep(1000);
             }
         }
@@ -52,6 +65,8 @@ namespace MyBhapticsTactsuit
             LOG("Starting HeartBeat thread...");
             Thread HeartBeatThread = new Thread(HeartBeatFunc);
             HeartBeatThread.Start();
+            Thread SwimmingThread = new Thread(SwimmingFunc);
+            SwimmingThread.Start();
         }
 
         public void LOG(string logStr)
@@ -170,6 +185,15 @@ namespace MyBhapticsTactsuit
         public void StopHeartBeat()
         {
             HeartBeat_mrse.Reset();
+        }
+        public void StartSwimming()
+        {
+            Swimming_mrse.Set();
+        }
+
+        public void StopSwimming()
+        {
+            Swimming_mrse.Reset();
         }
 
         public void StopHapticFeedback(String effect)
