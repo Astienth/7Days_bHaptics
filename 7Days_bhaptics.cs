@@ -15,7 +15,7 @@ namespace Days_bhaptics
         internal static new ManualLogSource Log;
 #pragma warning restore CS0109
         public static TactsuitVR tactsuitVr;
-        public static bool jumped = false;
+        public static bool startedHeart = false;
 
         private void Awake()
         {
@@ -37,7 +37,7 @@ namespace Days_bhaptics
         swimming
     */
 
-    
+
     [HarmonyPatch(typeof(EntityPlayerLocal), "DamageEntity")]
     public class bhaptics_OnDamage
     {
@@ -54,9 +54,14 @@ namespace Days_bhaptics
                 return;
             }
 
+            if (__instance.IsDead())
+            {
+                return;
+            }
+
             if (_damageSource.damageSource == EnumDamageSource.External)
             {
-                KeyValuePair<float, float>  coord = TactsuitVR.getAngleAndShift(__instance.transform, _damageSource.getDirection());
+                KeyValuePair<float, float> coord = TactsuitVR.getAngleAndShift(__instance.transform, _damageSource.getDirection(), 180f);
                 Plugin.tactsuitVr.PlayBackHit("Impact", coord.Key, coord.Value);
             }
             else
@@ -86,7 +91,7 @@ namespace Days_bhaptics
             Plugin.tactsuitVr.PlaybackHaptics("RecoilVest_R");
         }
     }
-    
+
     [HarmonyPatch(typeof(EntityPlayerLocal), "OnEntityDeath")]
     public class bhaptics_OnEntityDeath
     {
@@ -104,14 +109,13 @@ namespace Days_bhaptics
             }
             Plugin.tactsuitVr.PlaybackHaptics("Death");
             Plugin.tactsuitVr.StopThreads();
+            Plugin.startedHeart = false;
         }
     }
-    
+
     [HarmonyPatch(typeof(EntityPlayerLocal), "OnUpdateEntity")]
     public class bhaptics_OnUpdateEntity
     {
-        public static bool startedHeart = false;
-
         [HarmonyPostfix]
         public static void Postfix(EntityPlayerLocal __instance)
         {
@@ -120,20 +124,26 @@ namespace Days_bhaptics
                 return;
             }
 
-            if (Traverse.Create(__instance).Field("isSpectator").GetValue<bool>())
+            if (__instance.IsDead() || Traverse.Create(__instance).Field("isSpectator").GetValue<bool>())
             {
                 return;
             }
-            if (Traverse.Create(__instance).Field("oldHealth").GetValue<float>() < 15 
-                && !startedHeart)
+
+            if (Traverse.Create(__instance).Field("oldHealth").GetValue<float>() < 15)
             {
-                startedHeart = true;
-                Plugin.tactsuitVr.StartHeartBeat();
+                if (!Plugin.startedHeart)
+                {
+                    Plugin.startedHeart = true;
+                    Plugin.tactsuitVr.StartHeartBeat();
+                }
             }
             else
             {
-                startedHeart = false;
-                Plugin.tactsuitVr.StopHeartBeat();
+                if (Plugin.startedHeart)
+                {
+                    Plugin.startedHeart = false;
+                    Plugin.tactsuitVr.StopHeartBeat();
+                }
             }
         }
     }
@@ -154,34 +164,51 @@ namespace Days_bhaptics
                 return;
             }
 
-            switch(_eventType)
-            {                    
+            switch (_eventType)
+            {
                 case MinEventTypes.onSelfJump:
                     Plugin.tactsuitVr.PlaybackHaptics("OnJump");
-                    Plugin.jumped = true;
                     break;
 
                 case MinEventTypes.onSelfRespawn:
                     Plugin.tactsuitVr.StopThreads();
-                    break; 
+                    Plugin.startedHeart = false;
+                    break;
 
                 case MinEventTypes.onSelfFirstSpawn:
                     Plugin.tactsuitVr.StopThreads();
-                    break;
-
-                case MinEventTypes.onSelfSwimStart:
-                    Plugin.tactsuitVr.StartSwimming();
-                    break;
-
-                case MinEventTypes.onSelfSwimStop:
-                    Plugin.tactsuitVr.StopSwimming();
-                    break;
-
-                case MinEventTypes.onSelfSwimIdle:
-                    Plugin.tactsuitVr.StopSwimming();
+                    Plugin.startedHeart = false;
                     break;
 
                 default: break;
+            }
+        }
+    }
+
+    [HarmonyPatch(typeof(EntityPlayerLocal), "SwimModeTick")]
+    public class bhaptics_OnSwimModeTick
+    {
+        [HarmonyPostfix]
+        public static void Postfix(EntityPlayerLocal __instance)
+        {
+            if (Plugin.tactsuitVr.suitDisabled)
+            {
+                return;
+            }
+
+            if (Traverse.Create(__instance).Field("isSpectator").GetValue<bool>())
+            {
+                return;
+            }
+
+            int swimMode = Traverse.Create(__instance).Field("swimMode").GetValue<int>();
+            if (swimMode > 0)
+            {
+                Plugin.tactsuitVr.StartSwimming();
+            }
+            else
+            {
+                Plugin.tactsuitVr.StopSwimming();
             }
         }
     }
@@ -195,7 +222,7 @@ namespace Days_bhaptics
                     Plugin.tactsuitVr.PlaybackHaptics("Heal");
                     break; 
     */
-    
+
     [HarmonyPatch(typeof(EntityAlive), "FireEvent")]
     public class bhaptics_OnFireEventEntityAlive
     {
@@ -219,15 +246,15 @@ namespace Days_bhaptics
 
 
                     case MinEventTypes.onSelfWaterSubmerge:
-                        Plugin.tactsuitVr.StopSwimming();
                         Plugin.tactsuitVr.PlaybackHaptics("EnterWater_Arms");
                         Plugin.tactsuitVr.PlaybackHaptics("EnterWater_Vest");
+                        TactsuitVR.headUnderwater = true;
                         break;
 
                     case MinEventTypes.onSelfWaterSurface:
-                        Plugin.tactsuitVr.StopSwimming();
                         Plugin.tactsuitVr.PlaybackHaptics("ExitWater_Arms");
                         Plugin.tactsuitVr.PlaybackHaptics("ExitWater_Vest");
+                        TactsuitVR.headUnderwater = false;
                         break;
 
                     case MinEventTypes.onSelfPrimaryActionRayHit:
@@ -248,6 +275,76 @@ namespace Days_bhaptics
 
 
 
+    [HarmonyPatch(typeof(EntityPlayerLocal), "FallImpact")]
+    public class bhaptics_OnFallImpact
+    {
+        [HarmonyPrefix]
+        public static void Prefix(EntityPlayerLocal __instance, float speed)
+        {
+            if (Plugin.tactsuitVr.suitDisabled)
+            {
+                return;
+            }
+
+            if (__instance.IsDead() || Traverse.Create(__instance).Field("isSpectator").GetValue<bool>())
+            {
+                return;
+            }
+
+            if (speed > 0.02f)
+            {
+                Plugin.tactsuitVr.PlaybackHaptics("LandAfterJump");
+            }
+        }
+    }
+
+    [HarmonyPatch(typeof(ItemActionEat), "ExecuteAction")]
+    public class bhaptics_OnEatAndDrink
+    {
+        [HarmonyPostfix]
+        public static void Postfix()
+        {
+            if (Plugin.tactsuitVr.suitDisabled)
+            {
+                return;
+            }
+
+            Plugin.tactsuitVr.PlaybackHaptics("eatingvisor");
+            Plugin.tactsuitVr.PlaybackHaptics("Eating");
+        }
+    }
+    
+    [HarmonyPatch(typeof(ItemActionEat), "ExecuteInstantAction")]
+    public class bhaptics_OnDrinkAndDrink
+    {
+        [HarmonyPostfix]
+        public static void Postfix()
+        {
+            if (Plugin.tactsuitVr.suitDisabled)
+            {
+                return;
+            }
+
+            Plugin.tactsuitVr.PlaybackHaptics("eatingvisor");
+            Plugin.tactsuitVr.PlaybackHaptics("Eating");
+        }
+    }
+
+    [HarmonyPatch(typeof(GameManager), "OnApplicationQuit")]
+    public class bhaptics_OnAppQuit
+    {
+        [HarmonyPostfix]
+        public static void Postfix()
+        {
+            if (Plugin.tactsuitVr.suitDisabled)
+            {
+                return;
+            }
+            Plugin.tactsuitVr.StopAllHapticFeedback();
+            Plugin.startedHeart = false;
+        }
+    }
+
     [HarmonyPatch(typeof(EntityPlayerLocal), "LateUpdate")]
     public class bhaptics_OnLateUpdate
     {
@@ -258,42 +355,25 @@ namespace Days_bhaptics
             {
                 return;
             }
-
-            if (Traverse.Create(__instance).Field("isSpectator").GetValue<bool>())
+            if (Traverse.Create(__instance).Field("swimMode").GetValue<int>() < 0)
             {
-                return;
-            }
-            if (Plugin.jumped && __instance.onGround)
-            {
-                Plugin.tactsuitVr.PlaybackHaptics("LandAfterJump");
-                Plugin.jumped = false;
+                Plugin.tactsuitVr.StopSwimming();
             }
         }
     }
 
-    [HarmonyPatch(typeof(Localization), "Get")]
-    public class bhaptics_OnLocalization
+    [HarmonyPatch(typeof(EntityPlayerLocal), "OnEntityUnload")]
+    public class bhaptics_OnDestroy
     {
         [HarmonyPostfix]
-        public static void Postfix(string _key)
+        public static void Postfix(EntityPlayerLocal __instance)
         {
             if (Plugin.tactsuitVr.suitDisabled)
             {
                 return;
             }
-            switch(_key)
-            {
-                case "lblContextActionEat":
-                    Plugin.tactsuitVr.PlaybackHaptics("eatingvisor");
-                    Plugin.tactsuitVr.PlaybackHaptics("Eating");
-                    break;
-                case "lblContextActionDrink":
-                    Plugin.tactsuitVr.PlaybackHaptics("eatingvisor");
-                    Plugin.tactsuitVr.PlaybackHaptics("Eating");
-                    break;
-                default:
-                    break;
-            }
+
+            Plugin.tactsuitVr.StopAllHapticFeedback();
         }
     }
 }

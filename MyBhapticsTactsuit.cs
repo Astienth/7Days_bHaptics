@@ -17,6 +17,7 @@ namespace MyBhapticsTactsuit
         // Event to start and stop the heartbeat thread
         private static ManualResetEvent HeartBeat_mrse = new ManualResetEvent(false);
         private static ManualResetEvent Swimming_mrse = new ManualResetEvent(false);
+        public static bool headUnderwater = false;
         // dictionary of all feedback patterns found in the bHaptics directory
         public Dictionary<String, FileInfo> FeedbackMap = new Dictionary<String, FileInfo>();
 
@@ -43,8 +44,11 @@ namespace MyBhapticsTactsuit
                 // Check if reset event is active
                 Swimming_mrse.WaitOne();
                 PlaybackHaptics("Swimming");
-                PlaybackHaptics("EnterWater_Arms"); 
-                PlaybackHaptics("swimming_visor");
+                PlaybackHaptics("EnterWater_Arms");
+                if (headUnderwater)
+                {
+                    PlaybackHaptics("swimming_visor");
+                }
                 Thread.Sleep(1000);
             }
         }
@@ -137,13 +141,15 @@ namespace MyBhapticsTactsuit
             hapticPlayer.SubmitRegisteredVestRotation(key, key, rotationOption, scaleOption);
         }
 
-        public static KeyValuePair<float, float> getAngleAndShift(Transform player, Vector3 hit)
+        public static KeyValuePair<float, float> getAngleAndShift(Transform player, Vector3 hit, float fixRotation = 0f)
         {
             // bhaptics pattern starts in the front, then rotates to the left. 0° is front, 90° is left, 270° is right.
             // y is "up", z is "forward" in local coordinates
             Vector3 patternOrigin = new Vector3(0f, 0f, 1f);
             Vector3 hitPosition = hit - player.position;
             Quaternion myPlayerRotation = player.rotation;
+            //rotation fix if needed
+            myPlayerRotation *= Quaternion.Euler(0, fixRotation, 0);
             Vector3 playerDir = myPlayerRotation.eulerAngles;
             // get rid of the up/down component to analyze xz-rotation
             Vector3 flattenedHit = new Vector3(hitPosition.x, 0f, hitPosition.z);
@@ -157,6 +163,8 @@ namespace MyBhapticsTactsuit
             float myRotation = hitAngle - playerDir.y;
             // switch directions (bhaptics angles are in mathematically negative direction)
             myRotation *= -1f;
+            //fix rotation
+            myRotation += -1f * fixRotation;
             // convert signed angle into [0, 360] rotation
             if (myRotation < 0f) { myRotation = 360f + myRotation; }
 
@@ -213,6 +221,7 @@ namespace MyBhapticsTactsuit
         public void StopThreads()
         {
             StopHeartBeat();
+            StopSwimming();
         }
 
 
