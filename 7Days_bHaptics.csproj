@@ -46,6 +46,7 @@
     <Reference Include="Bhaptics.Tact">
       <HintPath>libs\Bhaptics.Tact.dll</HintPath>
     </Reference>
+    <Reference Include="InControl, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null" />
     <Reference Include="System" />
     <Reference Include="System.Core" />
     <Reference Include="System.Xml.Linq" />

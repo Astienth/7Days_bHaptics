@@ -5,6 +5,8 @@ using HarmonyLib;
 using UnityEngine;
 using MyBhapticsTactsuit;
 using System.Collections.Generic;
+using Days_bhaptics;
+using InControl;
 
 namespace Days_bhaptics
 {
@@ -16,6 +18,10 @@ namespace Days_bhaptics
 #pragma warning restore CS0109
         public static TactsuitVR tactsuitVr;
         public static bool startedHeart = false;
+        public static float currentHealth = 0;
+        public static bool inventoryOpened = false;
+        public static long buttonPressTime = DateTimeOffset.Now.ToUnixTimeMilliseconds();
+        public static bool playerHasSpawned = false;
 
         private void Awake()
         {
@@ -30,13 +36,55 @@ namespace Days_bhaptics
             var harmony = new Harmony("bhaptics.patch.7days");
             harmony.PatchAll();
         }
+
+        public static void checkHealth()
+        {
+            if (Plugin.currentHealth < 15 && Plugin.currentHealth < 0)
+            {
+                if (!Plugin.startedHeart)
+                {
+                    Plugin.startedHeart = true;
+                    Plugin.tactsuitVr.StartHeartBeat();
+                }
+            }
+            else
+            {
+                if (Plugin.startedHeart)
+                {
+                    Plugin.startedHeart = false;
+                    Plugin.tactsuitVr.StopHeartBeat();
+                }
+            }
+        }
+    }
+    
+    [HarmonyPatch(typeof(EntityPlayerLocal), "LateUpdate")]
+    public class bhaptics_OnUpdate
+    {
+        [HarmonyPostfix]
+        public static void Postfix(EntityPlayerLocal __instance)
+        {
+            Plugin.currentHealth = Traverse.Create(__instance).Field("oldHealth").GetValue<float>();
+        }
     }
 
-    /*
-    EntityPlayerLocal :
-        swimming
-    */
-
+    [HarmonyPatch(typeof(GameManager), "IsPaused")]
+    public class bhaptics_OnPause
+    {
+        [HarmonyPostfix]
+        public static void Postfix(GameManager __instance)
+        {
+            if(Traverse.Create(__instance).Field("gamePaused").GetValue<bool>())
+            {
+                Plugin.tactsuitVr.StopAllHapticFeedback();
+                Plugin.startedHeart = false;
+            }
+            else
+            {
+                Plugin.checkHealth();
+            }
+        }
+    }
 
     [HarmonyPatch(typeof(EntityPlayerLocal), "DamageEntity")]
     public class bhaptics_OnDamage
@@ -128,23 +176,7 @@ namespace Days_bhaptics
             {
                 return;
             }
-
-            if (Traverse.Create(__instance).Field("oldHealth").GetValue<float>() < 15)
-            {
-                if (!Plugin.startedHeart)
-                {
-                    Plugin.startedHeart = true;
-                    Plugin.tactsuitVr.StartHeartBeat();
-                }
-            }
-            else
-            {
-                if (Plugin.startedHeart)
-                {
-                    Plugin.startedHeart = false;
-                    Plugin.tactsuitVr.StopHeartBeat();
-                }
-            }
+            Plugin.checkHealth();
         }
     }
 
@@ -173,11 +205,18 @@ namespace Days_bhaptics
                 case MinEventTypes.onSelfRespawn:
                     Plugin.tactsuitVr.StopThreads();
                     Plugin.startedHeart = false;
+                    Plugin.playerHasSpawned = true;
                     break;
 
                 case MinEventTypes.onSelfFirstSpawn:
                     Plugin.tactsuitVr.StopThreads();
                     Plugin.startedHeart = false;
+                    Plugin.playerHasSpawned = true;
+                    break; 
+
+                case MinEventTypes.onSelfEnteredGame:
+                    Plugin.startedHeart = false;
+                    Plugin.playerHasSpawned = true;
                     break;
 
                 default: break;
@@ -213,16 +252,53 @@ namespace Days_bhaptics
         }
     }
 
+    [HarmonyPatch(typeof(PlayerAction), "Update")]
+    public class bhaptics_OnInventoryInputPressed
+    {
+        [HarmonyPostfix]
+        public static void Postfix(PlayerAction __instance)
+        {
+            if (Plugin.tactsuitVr.suitDisabled || !Plugin.playerHasSpawned)
+            {
+                return;
+            }
+
+            long diff = DateTimeOffset.Now.ToUnixTimeMilliseconds() - Plugin.buttonPressTime;
+
+            if (diff > 500 && 
+                (__instance.Name == "Inventory" || (__instance.Name == "Menu" && Plugin.inventoryOpened)) &&
+                __instance.IsPressed)
+            {
+                if (!Plugin.inventoryOpened)
+                {
+                    Plugin.tactsuitVr.PlaybackHaptics("InventoryOpen");
+                    Plugin.tactsuitVr.PlaybackHaptics("InventoryOpenArmLeft");
+                    Plugin.inventoryOpened = true;
+                    Plugin.buttonPressTime = DateTimeOffset.Now.ToUnixTimeMilliseconds();
+                    return;
+                }
+
+                if (Plugin.inventoryOpened)
+                {
+                    Plugin.tactsuitVr.PlaybackHaptics("InventoryClose");
+                    Plugin.tactsuitVr.PlaybackHaptics("InventoryCloseArmLeft");
+                    Plugin.inventoryOpened = false;
+                    Plugin.buttonPressTime = DateTimeOffset.Now.ToUnixTimeMilliseconds();
+                    return;
+                }
+            }
+        }
+    }
     /*
-    FireEvent from other classes
-    
-
-                //Event not used, find healing somewhere else ?
-                case MinEventTypes.onSelfHealedSelf:
-                    Plugin.tactsuitVr.PlaybackHaptics("Heal");
-                    break; 
+    [HarmonyPatch(typeof(EntityAlive), "FireEvent")]
+    public class bhaptics_OnHeal
+    {
+        [HarmonyPostfix]
+        public static void Postfix(EntityAlive __instance, MinEventTypes _eventType)
+        {
+        }
+    }
     */
-
     [HarmonyPatch(typeof(EntityAlive), "FireEvent")]
     public class bhaptics_OnFireEventEntityAlive
     {
@@ -342,6 +418,7 @@ namespace Days_bhaptics
             }
             Plugin.tactsuitVr.StopAllHapticFeedback();
             Plugin.startedHeart = false;
+            Plugin.playerHasSpawned = false;
         }
     }
 
@@ -374,6 +451,8 @@ namespace Days_bhaptics
             }
 
             Plugin.tactsuitVr.StopAllHapticFeedback();
+            Plugin.startedHeart = false;
+            Plugin.playerHasSpawned = false;
         }
     }
 }
