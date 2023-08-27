@@ -11,3 +11,6 @@ Manual installation</br>
 3) Get this mod via the "Releases": [https://github.com/Astienth/7Days_bHaptics/releases/download/1.0.0/7Days_bHaptics.zip](https://github.com/Astienth/7Days_bHaptics/releases/download/1.0.0/7Days_bHaptics.zip) .</br>
 4) Unzip the file, and place the two .dll files as well as the bHaptics folder into the BepInEx\Plugins directory of your game installation.</br>
 5) Just start the game up, the mod will load via BepInEx.</br>
+
+
+### 7 Days to die VR MOD available here : https://www.nexusmods.com/7daystodie/mods/3011
