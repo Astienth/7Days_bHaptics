@@ -2,6 +2,7 @@
 <img src="https://cdn.cloudflare.steamstatic.com/steam/apps/251570/header.jpg?t=1692918569" />
 </br>
 <b>Bhaptics integration for the VR game Compound</b>
+
 </br>[https://store.steampowered.com/app/251570/7_Days_to_Die/](https://store.steampowered.com/app/251570/7_Days_to_Die/)
 
 Manual installation</br>
