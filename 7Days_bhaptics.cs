@@ -7,6 +7,10 @@ using MyBhapticsTactsuit;
 using System.Collections.Generic;
 using Days_bhaptics;
 using InControl;
+using DynamicMusic;
+using static AstarManager;
+using System.Runtime.Remoting.Lifetime;
+using System.Security.Policy;
 
 namespace Days_bhaptics
 {
@@ -114,8 +118,65 @@ namespace Days_bhaptics
             }
             else
             {
-                Plugin.tactsuitVr.PlaybackHaptics("Impact");
-                Plugin.tactsuitVr.PlaybackHaptics("hurtvisor");
+                switch (_damageSource.damageType)
+                {
+                    // Bloodloss
+                    case EnumDamageTypes.BloodLoss:
+                        Plugin.tactsuitVr.PlaybackHaptics("bloodLossVest");
+                        break;
+                    // electric
+                    case EnumDamageTypes.Radiation:
+                        Plugin.tactsuitVr.PlaybackHaptics("electricVest");
+                        Plugin.tactsuitVr.PlaybackHaptics("electricArms");
+                        Plugin.tactsuitVr.PlaybackHaptics("electricHead");
+                        break;
+                    case EnumDamageTypes.Cold:
+                        Plugin.tactsuitVr.PlaybackHaptics("electricVest");
+                        Plugin.tactsuitVr.PlaybackHaptics("electricArms");
+                        Plugin.tactsuitVr.PlaybackHaptics("electricHead");
+                        break;
+                    case EnumDamageTypes.Heat:
+                        Plugin.tactsuitVr.PlaybackHaptics("electricVest");
+                        Plugin.tactsuitVr.PlaybackHaptics("electricArms");
+                        Plugin.tactsuitVr.PlaybackHaptics("electricHead");
+                        break;
+                    case EnumDamageTypes.Electrical:
+                        Plugin.tactsuitVr.PlaybackHaptics("electricVest");
+                        Plugin.tactsuitVr.PlaybackHaptics("electricArms");
+                        Plugin.tactsuitVr.PlaybackHaptics("electricHead");
+                        break;
+                    // infection
+                    case EnumDamageTypes.Toxic:
+                        Plugin.tactsuitVr.PlaybackHaptics("toxicVest");
+                        Plugin.tactsuitVr.PlaybackHaptics("starvationVisor");
+                        break;
+                    case EnumDamageTypes.Disease:
+                        Plugin.tactsuitVr.PlaybackHaptics("toxicVest");
+                        Plugin.tactsuitVr.PlaybackHaptics("starvationVisor");
+                        break;
+                    case EnumDamageTypes.Infection:
+                        Plugin.tactsuitVr.PlaybackHaptics("toxicVest");
+                        Plugin.tactsuitVr.PlaybackHaptics("starvationVisor");
+                        break;
+                    // stomach
+                    case EnumDamageTypes.Starvation:
+                        Plugin.tactsuitVr.PlaybackHaptics("starvationVest");
+                        Plugin.tactsuitVr.PlaybackHaptics("starvationVisor");
+                        break;
+                    // lungs
+                    case EnumDamageTypes.Suffocation:
+                        Plugin.tactsuitVr.PlaybackHaptics("suffocationVest");
+                        Plugin.tactsuitVr.PlaybackHaptics("suffocationVisor");
+                        break;
+                    case EnumDamageTypes.Dehydration:
+                        Plugin.tactsuitVr.PlaybackHaptics("dehydrationVest");
+                        Plugin.tactsuitVr.PlaybackHaptics("starvationVisor");
+                        break;
+                    default:
+                        Plugin.tactsuitVr.PlaybackHaptics("Impact");
+                        Plugin.tactsuitVr.PlaybackHaptics("hurtvisor");
+                        break;
+                }
             }
         }
     }
@@ -164,6 +225,27 @@ namespace Days_bhaptics
     [HarmonyPatch(typeof(EntityPlayerLocal), "OnUpdateEntity")]
     public class bhaptics_OnUpdateEntity
     {
+        [HarmonyPrefix]
+        public static void Prefix(EntityPlayerLocal __instance)
+        {
+            if (Plugin.tactsuitVr.suitDisabled)
+            {
+                return;
+            }
+
+            if (__instance.IsDead() || Traverse.Create(__instance).Field("isSpectator").GetValue<bool>())
+            {
+                return;
+            }
+
+            Plugin.Log.LogMessage("Health " + __instance.Health + " " + Plugin.currentHealth + " " + __instance.GetMaxHealth());
+
+            if ((float)__instance.Health - Plugin.currentHealth > 5)
+            {
+                Plugin.tactsuitVr.PlaybackHaptics("Heal");
+            }
+        }
+
         [HarmonyPostfix]
         public static void Postfix(EntityPlayerLocal __instance)
         {
@@ -289,16 +371,7 @@ namespace Days_bhaptics
             }
         }
     }
-    /*
-    [HarmonyPatch(typeof(EntityAlive), "FireEvent")]
-    public class bhaptics_OnHeal
-    {
-        [HarmonyPostfix]
-        public static void Postfix(EntityAlive __instance, MinEventTypes _eventType)
-        {
-        }
-    }
-    */
+
     [HarmonyPatch(typeof(EntityAlive), "FireEvent")]
     public class bhaptics_OnFireEventEntityAlive
     {
@@ -319,7 +392,6 @@ namespace Days_bhaptics
                     case MinEventTypes.onOtherHealedSelf:
                         Plugin.tactsuitVr.PlaybackHaptics("Heal");
                         break;
-
 
                     case MinEventTypes.onSelfWaterSubmerge:
                         Plugin.tactsuitVr.PlaybackHaptics("EnterWater_Arms");
