@@ -14,3 +14,6 @@ Manual installation</br>
 4) Unzip the file, and place the two .dll files as well as the bHaptics folder into the BepInEx\Plugins directory of your game installation.</br>
 5) Just start the game up, the mod will load via BepInEx.</br>
 
+
+☕ If you wanna show some support you can buy me a coffee : https://www.buymeacoffee.com/astienth4
+
